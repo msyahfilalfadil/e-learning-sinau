@@ -6,6 +6,9 @@ use App\Models\Kelas;
 use App\Models\Materi;
 use App\Models\Kuis;
 use App\Models\User;
+use App\Imports\KelasImport;
+use App\Exports\KelasTemplateExport;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -131,5 +134,36 @@ class KelasController extends Controller
         $kelas->delete();
 
         return redirect()->route('kelas.index')->with('success', "Kelas '{$nama}' berhasil dihapus!");
+    }
+
+    /**
+     * Download template Excel untuk impor data kelas.
+     */
+    public function downloadTemplate()
+    {
+        return Excel::download(new KelasTemplateExport, 'template-import-kelas.xlsx');
+    }
+
+    /**
+     * Impor data kelas dari file Excel (.xlsx, .xls, .csv).
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+        ], [
+            'file.required' => 'Pilih file Excel terlebih dahulu.',
+            'file.mimes'    => 'File harus berformat .xlsx, .xls, atau .csv.',
+            'file.max'      => 'Ukuran file maksimal 2 MB.',
+        ]);
+
+        try {
+            $import = new KelasImport;
+            Excel::import($import, $request->file('file'));
+
+            return redirect()->route('kelas.index')->with('success', "Import berhasil! Seluruh data ({$import->imported} kelas) sukses ditambahkan.");
+        } catch (\Throwable $e) {
+            return redirect()->route('kelas.index')->with('error', $e->getMessage());
+        }
     }
 }
