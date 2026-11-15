@@ -37,15 +37,26 @@ class DashboardController extends Controller
 
     /**
      * Menampilkan halaman dashboard Siswa (data dinamis dari database).
+     * Khusus untuk siswa yang sedang login (isolasi data antar siswa).
+     * Admin juga dapat melihat tampilan ruang siswa.
      */
     public function siswa()
     {
-        $siswa = User::where('role', 'siswa')->first();
-        $siswaId = auth()->id() ?? ($siswa ? $siswa->id : 3);
+        $user = auth()->user();
+
+        // Jika Admin yang melihat, muat data sampel siswa agar dashboard terisi lengkap
+        if ($user && $user->role === 'admin') {
+            $sampleSiswa = User::where('role', 'siswa')->first();
+            $siswaId = $sampleSiswa ? $sampleSiswa->id : $user->id;
+        } else {
+            $siswaId = auth()->id();
+        }
 
         $kelasList = Kelas::with(['guru', 'materi', 'kuis'])->latest()->get();
         $materiList = Materi::with('kelas')->latest()->get();
         $kuisList = Kuis::with(['kelas', 'soal', 'nilai'])->latest()->get();
+        
+        // HANYA memuat nilai milik siswa yang bersangkutan
         $nilaiList = Nilai::with(['kuis.kelas'])->where('siswa_id', $siswaId)->latest()->get();
 
         return view('siswa.dashboard', compact('kelasList', 'materiList', 'kuisList', 'nilaiList', 'siswaId'));
