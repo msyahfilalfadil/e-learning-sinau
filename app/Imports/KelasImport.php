@@ -14,28 +14,35 @@ class KelasImport implements ToCollection, WithHeadingRow
 
     /**
      * Membaca seluruh data sekaligus ke dalam Collection.
-     * Menerapkan prinsip ALL-OR-NOTHING (Semua masuk ATAU semua batal jika ada yang belum tuntas).
+     * Aturan:
+     * 1. Jika kolom ada yang kosong -> Batal semua.
+     * 2. Jika kode_kelas sama DAN isinya beda -> ERROR / Batal semua (konflik data).
+     * 3. Jika kode_kelas sama DAN isinya sama persis -> Tetap lanjut (dilewati agar tidak duplikat di DB).
      */
     public function collection(Collection $rows): void
     {
-        $validData = [];
-        $errors    = [];
-        $rowNumber = 1; // Baris 1 adalah header di file Excel
+        $validData    = [];
+        $errors       = [];
+        $seenInFile   = []; // Menyimpan data unik yang sudah dibaca dalam file
+        $rowNumber    = 1;  // Baris 1 adalah header
+
+        // Ambil data yang sudah ada di database untuk dicocokkan
+        $existingClasses = Kelas::all()->keyBy(fn($item) => strtoupper(trim($item->kode_kelas)));
 
         foreach ($rows as $row) {
             $rowNumber++;
 
             $nama      = trim($row['nama_kelas'] ?? '');
             $mapel     = trim($row['mata_pelajaran'] ?? '');
-            $kode      = trim($row['kode_kelas'] ?? '');
+            $kode      = strtoupper(trim($row['kode_kelas'] ?? ''));
             $deskripsi = trim($row['deskripsi'] ?? '');
 
-            // Abaikan jika baris benar-benar kosong total (misal sisa baris kosong di bawah file)
+            // Abaikan jika baris benar-benar kosong total
             if ($nama === '' && $mapel === '' && $kode === '' && $deskripsi === '') {
                 continue;
             }
 
-            // Cek apakah ada field yang belum tuntas
+            // 1. Cek kelengkapan 4 kolom
             $missingFields = [];
             if ($nama === '') {
                 $missingFields[] = 'Nama Kelas';
@@ -50,13 +57,60 @@ class KelasImport implements ToCollection, WithHeadingRow
                 $missingFields[] = 'Deskripsi';
             }
 
-            // Jika ada salah satu yang tidak lengkap, catat ke daftar error
             if (!empty($missingFields)) {
                 $errors[] = "Baris {$rowNumber} (kolom " . implode(', ', $missingFields) . " belum tuntas diisi)";
                 continue;
             }
 
-            // Simpan sementara ke antrean data yang siap diinsert
+            // 2. CEK TERHADAP DATABASE:
+            if ($existingClasses->has($kode)) {
+                $dbKelas = $existingClasses->get($kode);
+                
+                // Cek apakah data lainnya BERBEDA
+                $isDifferent = (
+                    strcasecmp($dbKelas->nama_kelas, $nama) !== 0 ||
+                    strcasecmp($dbKelas->mata_pelajaran, $mapel) !== 0 ||
+                    strcasecmp(trim($dbKelas->deskripsi ?? ''), $deskripsi) !== 0
+                );
+
+                if ($isDifferent) {
+                    // Kode sama TAPI data lain beda -> ERROR
+                    $errors[] = "Baris {$rowNumber} (kode kelas '{$kode}' sudah ada di sistem tetapi datanya berbeda)";
+                    continue;
+                } else {
+                    // Kode sama DAN semua data persis sama -> Lanjut (abaikan insert ulang)
+                    continue;
+                }
+            }
+
+            // 3. CEK DI DALAM FILE ITU SENDIRI (Jika ada kode kembar di file):
+            if (isset($seenInFile[$kode])) {
+                $prev = $seenInFile[$kode];
+
+                $isDifferentInFile = (
+                    strcasecmp($prev['nama_kelas'], $nama) !== 0 ||
+                    strcasecmp($prev['mata_pelajaran'], $mapel) !== 0 ||
+                    strcasecmp($prev['deskripsi'], $deskripsi) !== 0
+                );
+
+                if ($isDifferentInFile) {
+                    // Di dalam file ada kode sama TAPI isinya beda -> ERROR
+                    $errors[] = "Baris {$rowNumber} (kode kelas '{$kode}' sama dengan baris {$prev['row']} tetapi isinya berbeda)";
+                    continue;
+                } else {
+                    // Kode sama DAN isi persis sama di dalam file -> Lanjut (lewati baris kembar kedua)
+                    continue;
+                }
+            }
+
+            // Catat baris data baru
+            $seenInFile[$kode] = [
+                'row'            => $rowNumber,
+                'nama_kelas'     => $nama,
+                'mata_pelajaran' => $mapel,
+                'deskripsi'      => $deskripsi,
+            ];
+
             $validData[] = [
                 'nama_kelas'     => $nama,
                 'mata_pelajaran' => $mapel,
@@ -68,19 +122,17 @@ class KelasImport implements ToCollection, WithHeadingRow
             ];
         }
 
-        // JIKA ADA SALAH SATU BARIS YANG TIDAK LENGKAP:
-        // Gagalkan seluruh proses impor! Semua data yang lengkap pun TIDAK boleh masuk.
+        // JIKA ADA SALAH SATU BARIS YANG KONFLIK ATAU TIDAK LENGKAP:
         if (!empty($errors)) {
             $petunjuk = implode('; ', array_slice($errors, 0, 5));
             if (count($errors) > 5) {
-                $petunjuk .= ' dan ' . (count($errors) - 5) . ' baris lainnya';
+                $petunjuk .= ' dan ' . (count($errors) - 5) . ' masalah lainnya';
             }
 
-            throw new Exception("Seluruh impor dibatalkan karena ada data yang belum tuntas dimasukkan: {$petunjuk}. Silakan lengkapi file Excel dan unggah kembali.");
+            throw new Exception("Seluruh impor dibatalkan karena: {$petunjuk}. Silakan perbaiki data dan unggah kembali.");
         }
 
-        // JIKA SEMUA DATA LENGKAP 100%:
-        // Baru masukkan semua ke database
+        // JIKA SEMUA LOLOS:
         if (!empty($validData)) {
             Kelas::insert($validData);
             $this->imported = count($validData);

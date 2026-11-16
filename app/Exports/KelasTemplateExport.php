@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\Kelas;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
@@ -13,22 +14,23 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 class KelasTemplateExport implements FromArray, WithHeadings, WithColumnWidths, WithStyles
 {
     /**
-     * Berikan minimal 10 contoh baris data seperti ketentuan praktikum
+     * Ambil 5 data contoh nyata langsung dari database
      */
     public function array(): array
     {
-        return [
-            ['Matematika 10A', 'Matematika', 'MTH10A', 'Pembelajaran aljabar dan trigonometri dasar'],
-            ['Fisika 10B', 'Fisika', 'FIS10B', 'Konsep gerak lurus, vektor, dan hukum Newton'],
-            ['Kimia 10A', 'Kimia', 'KMA10A', 'Struktur atom dan ikatan kimia'],
-            ['Biologi 10A', 'Biologi', 'BIO10A', 'Keanekaragaman hayati dan ekosistem'],
-            ['Bahasa Indonesia 10C', 'Bahasa Indonesia', 'IND10C', 'Teks eksposisi dan negosiasi'],
-            ['Bahasa Inggris 10A', 'Bahasa Inggris', 'ENG10A', 'Descriptive text and personal letters'],
-            ['Sejarah Indonesia 10B', 'Sejarah', 'SEJ10B', 'Zaman praaksara dan masuknya Hindu-Buddha'],
-            ['Geografi 10A', 'Geografi', 'GEO10A', 'Prinsip geografi dan dinamika litosfer'],
-            ['Ekonomi 10B', 'Ekonomi', 'EKO10B', 'Kelangkaan dan sistem ekonomi'],
-            ['Sosiologi 10A', 'Sosiologi', 'SOS10A', 'Interaksi sosial dan institusi kemasyarakatan'],
-        ];
+        $kelasList = Kelas::orderBy('id', 'asc')->take(5)->get();
+
+        $rows = [];
+        foreach ($kelasList as $kelas) {
+            $rows[] = [
+                $kelas->nama_kelas,
+                $kelas->mata_pelajaran,
+                $kelas->kode_kelas,
+                $kelas->deskripsi ?? '-',
+            ];
+        }
+
+        return $rows;
     }
 
     public function headings(): array
@@ -62,4 +64,3 @@ class KelasTemplateExport implements FromArray, WithHeadings, WithColumnWidths, 
         ];
     }
 }
-
