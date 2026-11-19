@@ -156,8 +156,8 @@
 
             <div class="rounded-lg bg-[#FAF8F4] border border-[#D4C0A0] p-3 text-xs text-[#6E4A2E] space-y-1">
                 <p class="font-semibold text-[#241508]">Petunjuk Pengisian:</p>
-                <p>1. Unduh template resmi melalui tombol di bawah.</p>
-                <p>2. Isi data sesuai kolom (nama_kelas, mata_pelajaran, kode_kelas, deskripsi).</p>
+                <p>1. Unduh template resmi atau gunakan file hasil <strong>Ekspor Excel</strong>.</p>
+                <p>2. Pastikan kolom Nama Kelas, Mata Pelajaran, Kode Kelas, dan Deskripsi terisi.</p>
                 <p>3. Simpan dan unggah kembali file tersebut di sini.</p>
             </div>
 
