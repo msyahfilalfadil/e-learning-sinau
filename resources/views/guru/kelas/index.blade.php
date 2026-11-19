@@ -120,7 +120,7 @@
             </div>
         @endif
     </div>
-    <div class=footer style="text-align:center; margin-top:20px; color:#6E4A2E; font-size:12px;">
+    <div class="footer" style="text-align:center; margin-top:20px; color:#6E4A2E; font-size:12px;">
         <p>E-Learning by kelompok 2.</p>
     </div>
 </div>
